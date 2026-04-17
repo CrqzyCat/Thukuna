@@ -7,6 +7,6 @@ public class ThukunaDataGenerator implements DataGeneratorEntrypoint {
 
     @Override
     public void onInitializeDataGenerator(FabricDataGenerator fabricDataGenerator) {
-        FabricDataGenerator.Pack pack = fabricDataGenerator.createPack();
+        // Data generation (aktuell nicht benötigt)
     }
 }
