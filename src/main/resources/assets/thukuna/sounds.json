@@ -1,0 +1,10 @@
+{
+  "video_audio": {
+    "sounds": [
+      {
+        "name": "thukuna:video_audio",
+        "stream": true
+      }
+    ]
+  }
+}

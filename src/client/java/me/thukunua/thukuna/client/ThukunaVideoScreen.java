@@ -3,39 +3,41 @@ package me.thukunua.thukuna.client;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.Java2DFrameConverter;
 
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+
 @Environment(EnvType.CLIENT)
 public class ThukunaVideoScreen extends Screen {
 
-    private static final Identifier TEXTURE_ID = Identifier.of("thukuna", "video_frame");
+    private static final Identifier TEXTURE = Identifier.of("thukuna", "video_frame");
 
-    private NativeImageBackedTexture nativeTexture = null;
-    private boolean textureRegistered = false;
-    private final List<int[]> frames = new ArrayList<>();
-    private int currentFrame = 0;
-    private int videoWidth = 0;
-    private int videoHeight = 0;
-    private long lastFrameTime = 0;
-    private long frameDurationMs = 33;
+    private NativeImageBackedTexture texture;
+    private FFmpegFrameGrabber grabber;
+    private Thread videoThread;
+
+    private int videoWidth;
+    private int videoHeight;
+
+    private volatile boolean running = true;
     private volatile boolean loaded = false;
-    private volatile boolean loadFailed = false;
+    private volatile boolean failed = false;
+    private volatile boolean finished = false;
+
+    private volatile int[] latestFramePixels = null;
+    private volatile boolean newFrameAvailable = false;
 
     public ThukunaVideoScreen() {
         super(Text.literal("Thukuna"));
@@ -43,156 +45,161 @@ public class ThukunaVideoScreen extends Screen {
 
     @Override
     protected void init() {
-        super.init();
-        loadVideoFrames();
+        loadVideo();
     }
 
-    private void loadVideoFrames() {
-        new Thread(() -> {
+    private void loadVideo() {
+        videoThread = new Thread(() -> {
+            File tmp = null;
             try {
-                InputStream is = ThukunaVideoScreen.class.getResourceAsStream(
-                        "/assets/thukuna/videos/thukuna.mp4"
-                );
+                InputStream is = ThukunaVideoScreen.class.getResourceAsStream("/assets/thukuna/videos/thukuna.mp4");
                 if (is == null) {
-                    ThukunaClient.LOGGER.error("Thukuna: thukuna.mp4 nicht gefunden!");
-                    loadFailed = true;
+                    failed = true;
                     return;
                 }
 
-                File tmp = File.createTempFile("thukuna_video", ".mp4");
+                tmp = File.createTempFile("thukuna", ".mp4");
                 tmp.deleteOnExit();
+
                 try (FileOutputStream fos = new FileOutputStream(tmp)) {
                     is.transferTo(fos);
                 }
-                is.close();
 
-                FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(tmp);
+                grabber = new FFmpegFrameGrabber(tmp);
                 grabber.start();
 
-                videoWidth  = grabber.getImageWidth();
+                videoWidth = grabber.getImageWidth();
                 videoHeight = grabber.getImageHeight();
-                double fps  = grabber.getVideoFrameRate();
-                if (fps > 0) frameDurationMs = (long) (1000.0 / fps);
+
+                double fps = grabber.getVideoFrameRate();
+                long frameDelay = fps > 0 ? (long) (1000 / fps) : 33;
 
                 Java2DFrameConverter converter = new Java2DFrameConverter();
                 Frame frame;
-                while ((frame = grabber.grabImage()) != null) {
+
+                loaded = true;
+                long startTime = System.currentTimeMillis();
+                int frameCount = 0;
+
+                while (running && (frame = grabber.grabImage()) != null) {
                     BufferedImage img = converter.convert(frame);
                     if (img != null) {
                         BufferedImage rgba = new BufferedImage(videoWidth, videoHeight, BufferedImage.TYPE_INT_ARGB);
                         rgba.getGraphics().drawImage(img, 0, 0, null);
+
                         int[] pixels = new int[videoWidth * videoHeight];
                         rgba.getRGB(0, 0, videoWidth, videoHeight, pixels, 0, videoWidth);
-                        frames.add(pixels);
+
+                        latestFramePixels = pixels;
+                        newFrameAvailable = true;
                     }
+
+                    frameCount++;
+                    long expectedTime = startTime + (frameCount * frameDelay);
+                    long sleepTime = expectedTime - System.currentTimeMillis();
+
+                    if (sleepTime > 0) Thread.sleep(sleepTime);
                 }
-                grabber.stop();
-                tmp.delete();
+                finished = true;
 
-                ThukunaClient.LOGGER.info("Thukuna: {} Frames geladen ({}x{}, {}ms/frame)",
-                        frames.size(), videoWidth, videoHeight, frameDurationMs);
-                loaded = true;
-                lastFrameTime = System.currentTimeMillis();
-
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             } catch (Exception e) {
-                ThukunaClient.LOGGER.error("Thukuna: Fehler beim Laden des Videos", e);
-                loadFailed = true;
+                failed = true;
+                e.printStackTrace();
+            } finally {
+                if (grabber != null) {
+                    try { grabber.stop(); grabber.release(); } catch (Exception ignored) {}
+                }
+                if (tmp != null && tmp.exists()) tmp.delete();
             }
-        }, "Thukuna-VideoLoader").start();
+        }, "video-loader");
+
+        videoThread.start();
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, 0xFF000000);
+        context.fill(0, 0, width, height, 0xFF000000);
 
-        if (loadFailed) {
-            context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.literal("Fehler: Video konnte nicht geladen werden!"),
-                    this.width / 2, this.height / 2, 0xFFFF5555);
+        if (failed) {
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Video Fehler"), width / 2, height / 2, 0xFF5555);
             return;
         }
 
-        if (!loaded || frames.isEmpty()) {
-            context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.literal("Loading..."),
-                    this.width / 2, this.height / 2, 0xFFFFFF);
+        if (!loaded) {
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Loading..."), width / 2, height / 2, 0xFFFFFF);
             return;
         }
 
-        long now = System.currentTimeMillis();
-        if (now - lastFrameTime >= frameDurationMs) {
-            currentFrame++;
-            lastFrameTime = now;
-        }
-
-        if (currentFrame >= frames.size()) {
-            this.client.setScreen(null);
+        if (finished) {
+            MinecraftClient.getInstance().setScreen(null);
             return;
         }
 
-        if (nativeTexture == null) {
+        if (texture == null && videoWidth > 0 && videoHeight > 0) {
             NativeImage img = new NativeImage(NativeImage.Format.RGBA, videoWidth, videoHeight, false);
-            nativeTexture = new NativeImageBackedTexture(() -> "thukuna_video_frame", img);
-
-            MinecraftClient.getInstance().getTextureManager()
-                    .registerTexture(TEXTURE_ID, nativeTexture);
-
-            textureRegistered = true;
+            texture = new NativeImageBackedTexture(() -> "thukuna_video", img);
+            MinecraftClient.getInstance().getTextureManager().registerTexture(TEXTURE, texture);
         }
 
-        NativeImage img = nativeTexture.getImage();
-        if (img != null) {
-            int[] pixels = frames.get(currentFrame);
-            for (int py = 0; py < videoHeight; py++) {
-                for (int px = 0; px < videoWidth; px++) {
-                    int argb = pixels[py * videoWidth + px];
-                    int a = (argb >> 24) & 0xFF;
-                    int r = (argb >> 16) & 0xFF;
-                    int g = (argb >> 8)  & 0xFF;
-                    int b =  argb        & 0xFF;
-                    img.setColorArgb(px, py, (a << 24) | (b << 16) | (g << 8) | r);
-                }
+        if (newFrameAvailable && latestFramePixels != null && texture != null) {
+            updateTexture(latestFramePixels);
+            newFrameAvailable = false;
+        }
+
+        if (texture != null) {
+            float scale = Math.min((float) width / videoWidth, (float) height / videoHeight);
+            int drawW = Math.round(videoWidth * scale);
+            int drawH = Math.round(videoHeight * scale);
+            int xPos = (width - drawW) / 2;
+            int yPos = (height - drawH) / 2;
+
+            // FIX: Verwende direkt das RenderLayer-Objekt anstatt einer Methodenreferenz
+            // Falls 'getGuiTextured' rot ist, probiere 'getGui'
+            context.drawTexture(
+                    RenderLayer.getGuiTextured(TEXTURE),
+                    TEXTURE,
+                    xPos,
+                    yPos,
+                    0.0f,
+                    0.0f,
+                    drawW,
+                    drawH,
+                    videoWidth,
+                    videoHeight
+            );
+        }
+    }
+
+    private void updateTexture(int[] pixels) {
+        NativeImage img = texture.getImage();
+        for (int y = 0; y < videoHeight; y++) {
+            for (int x = 0; x < videoWidth; x++) {
+                int argb = pixels[y * videoWidth + x];
+                int a = (argb >> 24) & 0xFF;
+                int r = (argb >> 16) & 0xFF;
+                int g = (argb >> 8) & 0xFF;
+                int b = argb & 0xFF;
+                img.setColorArgb(x, y, (a << 24) | (r << 16) | (g << 8) | b);
             }
-            nativeTexture.upload();
         }
+        texture.upload();
+    }
 
-        float scaleX = (float) this.width  / videoWidth;
-        float scaleY = (float) this.height / videoHeight;
-        float scale  = Math.min(scaleX, scaleY);
-        int drawW = (int) (videoWidth  * scale);
-        int drawH = (int) (videoHeight * scale);
-        int x = (this.width  - drawW) / 2;
-        int y = (this.height - drawH) / 2;
-
-        // FIX HIER
-        context.drawTexture(
-                RenderPipelines.GUI_TEXTURED,
-                TEXTURE_ID,
-                x, y,
-                0, 0,
-                drawW, drawH,
-                videoWidth, videoHeight
-        );
+    @Override
+    public void removed() {
+        super.removed();
+        running = false;
+        if (videoThread != null) videoThread.interrupt();
+        if (this.texture != null) {
+            this.texture.close();
+            MinecraftClient.getInstance().getTextureManager().destroyTexture(TEXTURE);
+        }
     }
 
     @Override
     public boolean shouldCloseOnEsc() {
         return true;
-    }
-
-    @Override
-    public boolean shouldPause() {
-        return true;
-    }
-
-    @Override
-    public void close() {
-        if (textureRegistered && client != null) {
-            client.getTextureManager().destroyTexture(TEXTURE_ID);
-            textureRegistered = false;
-            nativeTexture = null;
-        }
-        frames.clear();
-        super.close();
     }
 }
