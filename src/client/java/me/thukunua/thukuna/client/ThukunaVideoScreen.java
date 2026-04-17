@@ -5,7 +5,6 @@ import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.text.Text;
@@ -53,10 +52,7 @@ public class ThukunaVideoScreen extends Screen {
             File tmp = null;
             try {
                 InputStream is = ThukunaVideoScreen.class.getResourceAsStream("/assets/thukuna/videos/thukuna.mp4");
-                if (is == null) {
-                    failed = true;
-                    return;
-                }
+                if (is == null) { failed = true; return; }
 
                 tmp = File.createTempFile("thukuna", ".mp4");
                 tmp.deleteOnExit();
@@ -86,10 +82,8 @@ public class ThukunaVideoScreen extends Screen {
                     if (img != null) {
                         BufferedImage rgba = new BufferedImage(videoWidth, videoHeight, BufferedImage.TYPE_INT_ARGB);
                         rgba.getGraphics().drawImage(img, 0, 0, null);
-
                         int[] pixels = new int[videoWidth * videoHeight];
                         rgba.getRGB(0, 0, videoWidth, videoHeight, pixels, 0, videoWidth);
-
                         latestFramePixels = pixels;
                         newFrameAvailable = true;
                     }
@@ -97,25 +91,21 @@ public class ThukunaVideoScreen extends Screen {
                     frameCount++;
                     long expectedTime = startTime + (frameCount * frameDelay);
                     long sleepTime = expectedTime - System.currentTimeMillis();
-
                     if (sleepTime > 0) Thread.sleep(sleepTime);
                 }
                 finished = true;
-
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
             } catch (Exception e) {
                 failed = true;
-                e.printStackTrace();
             } finally {
-                if (grabber != null) {
-                    try { grabber.stop(); grabber.release(); } catch (Exception ignored) {}
-                }
-                if (tmp != null && tmp.exists()) tmp.delete();
+                cleanup(tmp);
             }
         }, "video-loader");
-
         videoThread.start();
+    }
+
+    private void cleanup(File tmp) {
+        if (grabber != null) { try { grabber.stop(); grabber.release(); } catch (Exception ignored) {} }
+        if (tmp != null && tmp.exists()) tmp.delete();
     }
 
     @Override
@@ -123,12 +113,12 @@ public class ThukunaVideoScreen extends Screen {
         context.fill(0, 0, width, height, 0xFF000000);
 
         if (failed) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Video Fehler"), width / 2, height / 2, 0xFF5555);
+            context.drawCenteredTextWithShadow(textRenderer, Text.literal("Video Fehler"), width / 2, height / 2, 0xFF5555);
             return;
         }
 
         if (!loaded) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Loading..."), width / 2, height / 2, 0xFFFFFF);
+            context.drawCenteredTextWithShadow(textRenderer, Text.literal("Loading..."), width / 2, height / 2, 0xFFFFFF);
             return;
         }
 
@@ -139,7 +129,8 @@ public class ThukunaVideoScreen extends Screen {
 
         if (texture == null && videoWidth > 0 && videoHeight > 0) {
             NativeImage img = new NativeImage(NativeImage.Format.RGBA, videoWidth, videoHeight, false);
-            texture = new NativeImageBackedTexture(() -> "thukuna_video", img);
+            // Konstruktor für 1.21.1
+            texture = new NativeImageBackedTexture(img);
             MinecraftClient.getInstance().getTextureManager().registerTexture(TEXTURE, texture);
         }
 
@@ -155,15 +146,14 @@ public class ThukunaVideoScreen extends Screen {
             int xPos = (width - drawW) / 2;
             int yPos = (height - drawH) / 2;
 
-            // FIX: Verwende direkt das RenderLayer-Objekt anstatt einer Methodenreferenz
-            // Falls 'getGuiTextured' rot ist, probiere 'getGui'
+            // DIESE METHODE SOLLTE IN 1.21.1 OHNE RENDERLAYER FUNKTIONIEREN:
+            // Wir nutzen die einfache Variante, die das Bild auf die Zielgröße streckt.
             context.drawTexture(
-                    RenderLayer.getGuiTextured(TEXTURE),
                     TEXTURE,
                     xPos,
                     yPos,
-                    0.0f,
-                    0.0f,
+                    0,
+                    0,
                     drawW,
                     drawH,
                     videoWidth,
@@ -181,7 +171,8 @@ public class ThukunaVideoScreen extends Screen {
                 int r = (argb >> 16) & 0xFF;
                 int g = (argb >> 8) & 0xFF;
                 int b = argb & 0xFF;
-                img.setColorArgb(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+                // NativeImage Format: ABGR (daher r und b getauscht beim Schreiben)
+                img.setColorArgb(x, y, (a << 24) | (b << 16) | (g << 8) | r);
             }
         }
         texture.upload();
@@ -189,17 +180,14 @@ public class ThukunaVideoScreen extends Screen {
 
     @Override
     public void removed() {
-        super.removed();
         running = false;
         if (videoThread != null) videoThread.interrupt();
-        if (this.texture != null) {
-            this.texture.close();
+        if (texture != null) {
+            texture.close();
             MinecraftClient.getInstance().getTextureManager().destroyTexture(TEXTURE);
         }
     }
 
     @Override
-    public boolean shouldCloseOnEsc() {
-        return true;
-    }
+    public boolean shouldCloseOnEsc() { return true; }
 }
