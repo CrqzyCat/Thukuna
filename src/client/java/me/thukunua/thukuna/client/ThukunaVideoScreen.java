@@ -3,14 +3,13 @@ package me.thukunua.thukuna.client;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -131,17 +130,16 @@ public class ThukunaVideoScreen extends Screen {
             return;
         }
 
-        // Texture beim ersten Mal anlegen und registrieren
         if (nativeTexture == null) {
             NativeImage img = new NativeImage(NativeImage.Format.RGBA, videoWidth, videoHeight, false);
             nativeTexture = new NativeImageBackedTexture(() -> "thukuna_video_frame", img);
-            // registerTexture(Identifier, AbstractTexture) - verfuegbar in 1.21.11
+
             MinecraftClient.getInstance().getTextureManager()
                     .registerTexture(TEXTURE_ID, nativeTexture);
+
             textureRegistered = true;
         }
 
-        // Frame-Pixel in NativeImage schreiben
         NativeImage img = nativeTexture.getImage();
         if (img != null) {
             int[] pixels = frames.get(currentFrame);
@@ -152,14 +150,12 @@ public class ThukunaVideoScreen extends Screen {
                     int r = (argb >> 16) & 0xFF;
                     int g = (argb >> 8)  & 0xFF;
                     int b =  argb        & 0xFF;
-                    // NativeImage.setColorArgb erwartet ABGR
                     img.setColorArgb(px, py, (a << 24) | (b << 16) | (g << 8) | r);
                 }
             }
             nativeTexture.upload();
         }
 
-        // Letterbox
         float scaleX = (float) this.width  / videoWidth;
         float scaleY = (float) this.height / videoHeight;
         float scale  = Math.min(scaleX, scaleY);
@@ -168,14 +164,14 @@ public class ThukunaVideoScreen extends Screen {
         int x = (this.width  - drawW) / 2;
         int y = (this.height - drawH) / 2;
 
-        // context.drawTexture mit RenderLayer::getGuiTextured (korrekte 1.21.x Signatur)
+        // FIX HIER
         context.drawTexture(
-                RenderLayer::getGuiTextured,
+                RenderPipelines.GUI_TEXTURED,
                 TEXTURE_ID,
                 x, y,
-                0f, 0f,
+                0, 0,
                 drawW, drawH,
-                drawW, drawH
+                videoWidth, videoHeight
         );
     }
 
