@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "me.thukunua.thukuna.client.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "AdvancementToastMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
