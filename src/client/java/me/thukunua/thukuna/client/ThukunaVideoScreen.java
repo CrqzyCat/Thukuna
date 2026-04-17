@@ -1,13 +1,13 @@
 package me.thukunua.thukuna.client;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.texture.DynamicTexture;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -25,7 +25,7 @@ import org.bytedeco.javacv.Java2DFrameConverter;
 @Environment(EnvType.CLIENT)
 public class ThukunaVideoScreen extends Screen {
 
-    private DynamicTexture dynamicTexture = null;
+    private NativeImageBackedTexture nativeTexture = null;
     private Identifier textureId = null;
     private final List<int[]> frames = new ArrayList<>();
     private int currentFrame = 0;
@@ -132,30 +132,30 @@ public class ThukunaVideoScreen extends Screen {
             return;
         }
 
-        // DynamicTexture beim ersten Frame anlegen
-        if (dynamicTexture == null) {
+        // NativeImageBackedTexture einmalig anlegen
+        if (nativeTexture == null) {
             NativeImage img = new NativeImage(NativeImage.Format.RGBA, videoWidth, videoHeight, false);
-            dynamicTexture = new DynamicTexture(img);
+            nativeTexture = new NativeImageBackedTexture("thukuna_video", img);
             textureId = MinecraftClient.getInstance().getTextureManager()
-                    .registerDynamicTexture("thukuna_video", dynamicTexture);
+                    .registerDynamicTexture("thukuna_video", nativeTexture);
         }
 
-        // Aktuellen Frame in NativeImage schreiben
-        NativeImage img = dynamicTexture.getImage();
+        // Aktuellen Frame in NativeImage schreiben (ABGR Format fuer NativeImage)
+        NativeImage img = nativeTexture.getImage();
         if (img != null) {
             int[] pixels = frames.get(currentFrame);
-            for (int y = 0; y < videoHeight; y++) {
-                for (int x = 0; x < videoWidth; x++) {
-                    int argb = pixels[y * videoWidth + x];
-                    // NativeImage erwartet ABGR
+            for (int py = 0; py < videoHeight; py++) {
+                for (int px = 0; px < videoWidth; px++) {
+                    int argb = pixels[py * videoWidth + px];
                     int a = (argb >> 24) & 0xFF;
                     int r = (argb >> 16) & 0xFF;
                     int g = (argb >> 8)  & 0xFF;
                     int b =  argb        & 0xFF;
-                    img.setColorArgb(x, y, (a << 24) | (b << 16) | (g << 8) | r);
+                    // NativeImage.setColorArgb erwartet ABGR
+                    img.setColorArgb(px, py, (a << 24) | (b << 16) | (g << 8) | r);
                 }
             }
-            dynamicTexture.upload();
+            nativeTexture.upload();
         }
 
         // Letterbox berechnen
@@ -167,12 +167,12 @@ public class ThukunaVideoScreen extends Screen {
         int x = (this.width  - drawW) / 2;
         int y = (this.height - drawH) / 2;
 
-        // Mit context.drawTexture zeichnen - das ist die sichere Minecraft-API
-        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        // Texture zeichnen mit der korrekten 1.21.x API
         context.drawTexture(
-                net.minecraft.client.gl.ShaderProgramKeys.POSITION_TEX,
+                RenderLayer::getGuiTextured,
                 textureId,
-                x, y, 0, 0,
+                x, y,
+                0, 0,
                 drawW, drawH,
                 drawW, drawH
         );
@@ -193,7 +193,7 @@ public class ThukunaVideoScreen extends Screen {
         if (textureId != null && client != null) {
             client.getTextureManager().destroyTexture(textureId);
             textureId = null;
-            dynamicTexture = null;
+            nativeTexture = null;
         }
         frames.clear();
         super.close();
