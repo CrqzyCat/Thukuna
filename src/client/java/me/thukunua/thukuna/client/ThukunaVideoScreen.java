@@ -1,14 +1,13 @@
 package me.thukunua.thukuna.client;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.render.*;
 import net.minecraft.text.Text;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
+import org.lwjgl.opengl.GL13;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -58,7 +57,6 @@ public class ThukunaVideoScreen extends Screen {
                     return;
                 }
 
-                // FFmpeg braucht eine echte Datei
                 File tmp = File.createTempFile("thukuna_video", ".mp4");
                 tmp.deleteOnExit();
                 try (FileOutputStream fos = new FileOutputStream(tmp)) {
@@ -69,9 +67,9 @@ public class ThukunaVideoScreen extends Screen {
                 FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(tmp);
                 grabber.start();
 
-                videoWidth = grabber.getImageWidth();
+                videoWidth  = grabber.getImageWidth();
                 videoHeight = grabber.getImageHeight();
-                double fps = grabber.getVideoFrameRate();
+                double fps  = grabber.getVideoFrameRate();
                 if (fps > 0) frameDurationMs = (long) (1000.0 / fps);
 
                 Java2DFrameConverter converter = new Java2DFrameConverter();
@@ -133,7 +131,7 @@ public class ThukunaVideoScreen extends Screen {
             return;
         }
 
-        // OpenGL Texture erstellen (einmalig)
+        // Texture einmalig anlegen
         if (textureId == -1) {
             textureId = GL11.glGenTextures();
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
@@ -143,46 +141,61 @@ public class ThukunaVideoScreen extends Screen {
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
         }
 
-        // Aktuellen Frame in Texture hochladen
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+        // Frame-Pixel in ByteBuffer schreiben (RGBA)
         int[] pixels = frames.get(currentFrame);
-        ByteBuffer buffer = ByteBuffer.allocateDirect(videoWidth * videoHeight * 4)
+        ByteBuffer buf = ByteBuffer.allocateDirect(videoWidth * videoHeight * 4)
                 .order(ByteOrder.nativeOrder());
         for (int p : pixels) {
-            buffer.put((byte) ((p >> 16) & 0xFF)); // R
-            buffer.put((byte) ((p >> 8)  & 0xFF)); // G
-            buffer.put((byte) ( p        & 0xFF)); // B
-            buffer.put((byte) ((p >> 24) & 0xFF)); // A
+            buf.put((byte) ((p >> 16) & 0xFF)); // R
+            buf.put((byte) ((p >> 8)  & 0xFF)); // G
+            buf.put((byte) ( p        & 0xFF)); // B
+            buf.put((byte) ((p >> 24) & 0xFF)); // A
         }
-        buffer.flip();
+        buf.flip();
+
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
         GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA,
                 videoWidth, videoHeight, 0,
-                GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
+                GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf);
 
-        // Letterbox-Berechnung
+        // Letterbox berechnen
         float scaleX = (float) this.width  / videoWidth;
         float scaleY = (float) this.height / videoHeight;
         float scale  = Math.min(scaleX, scaleY);
-        int drawW = (int) (videoWidth  * scale);
-        int drawH = (int) (videoHeight * scale);
-        int x = (this.width  - drawW) / 2;
-        int y = (this.height - drawH) / 2;
+        float drawW  = videoWidth  * scale;
+        float drawH  = videoHeight * scale;
+        float x      = (this.width  - drawW) / 2f;
+        float y      = (this.height - drawH) / 2f;
 
-        // Mit Minecraft's RenderSystem zeichnen
-        RenderSystem.setShader(GameRenderer::getPositionTexProgram);
-        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-        RenderSystem.bindTexture(textureId);
-        RenderSystem.enableBlend();
+        // Reines OpenGL-Quad zeichnen (kein Minecraft-Shader noetig)
+        GL11.glMatrixMode(GL11.GL_PROJECTION);
+        GL11.glPushMatrix();
+        GL11.glLoadIdentity();
+        GL11.glOrtho(0, this.width, this.height, 0, -1, 1);
 
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder bufferBuilder = tessellator.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
-        bufferBuilder.vertex(x,         y,         0).texture(0f, 0f);
-        bufferBuilder.vertex(x,         y + drawH, 0).texture(0f, 1f);
-        bufferBuilder.vertex(x + drawW, y + drawH, 0).texture(1f, 1f);
-        bufferBuilder.vertex(x + drawW, y,         0).texture(1f, 0f);
-        BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        GL11.glPushMatrix();
+        GL11.glLoadIdentity();
 
-        RenderSystem.disableBlend();
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glColor4f(1f, 1f, 1f, 1f);
+
+        GL11.glBegin(GL11.GL_QUADS);
+            GL11.glTexCoord2f(0, 0); GL11.glVertex2f(x,        y);
+            GL11.glTexCoord2f(1, 0); GL11.glVertex2f(x + drawW, y);
+            GL11.glTexCoord2f(1, 1); GL11.glVertex2f(x + drawW, y + drawH);
+            GL11.glTexCoord2f(0, 1); GL11.glVertex2f(x,        y + drawH);
+        GL11.glEnd();
+
+        GL11.glDisable(GL11.GL_BLEND);
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+
+        GL11.glPopMatrix();
+        GL11.glMatrixMode(GL11.GL_PROJECTION);
+        GL11.glPopMatrix();
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
     }
 
     @Override
@@ -198,7 +211,6 @@ public class ThukunaVideoScreen extends Screen {
     @Override
     public void close() {
         if (textureId != -1) {
-            RenderSystem.assertOnRenderThread();
             GL11.glDeleteTextures(textureId);
             textureId = -1;
         }
