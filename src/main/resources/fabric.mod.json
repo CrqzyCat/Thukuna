@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "thukuna",
+  "version": "${version}",
+  "name": "Thukuna",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/thukuna/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-datagen": [
+      "me.thukunua.thukuna.client.ThukunaDataGenerator"
+    ],
+    "client": [
+      "me.thukunua.thukuna.client.ThukunaClient"
+    ],
+    "main": [
+      "me.thukunua.thukuna.Thukuna"
+    ]
+  },
+  "mixins": [
+    "thukuna.mixins.json",
+    {
+      "config": "thukuna.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
