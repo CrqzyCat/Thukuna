@@ -1,14 +1,11 @@
 {
   "required": true,
-  "minVersion": "0.8",
-  "package": "me.thukunua.thukuna.mixin",
+  "package": "me.thukunua.thukuna.client.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [
+  "client": [
+    "AdvancementToastMixin"
   ],
   "injectors": {
     "defaultRequire": 1
-  },
-  "overwrites": {
-    "requireAnnotations": true
   }
 }

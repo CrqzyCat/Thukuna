@@ -1,35 +1,30 @@
 {
   "schemaVersion": 1,
   "id": "thukuna",
-  "version": "${version}",
+  "version": "1.0.0",
   "name": "Thukuna",
-  "description": "",
-  "authors": [],
-  "contact": {},
-  "license": "All-Rights-Reserved",
-  "icon": "assets/thukuna/icon.png",
+  "description": "Spielt das Thukuna-Video ab wenn du ein Advancement bekommst.",
+  "authors": ["thukunua"],
+  "license": "MIT",
   "environment": "client",
   "entrypoints": {
-    "fabric-datagen": [
-      "me.thukunua.thukuna.client.ThukunaDataGenerator"
+    "main": [
+      "me.thukunua.thukuna.Thukuna"
     ],
     "client": [
       "me.thukunua.thukuna.client.ThukunaClient"
     ],
-    "main": [
-      "me.thukunua.thukuna.Thukuna"
+    "fabric-datagen": [
+      "me.thukunua.thukuna.client.ThukunaDataGenerator"
     ]
   },
   "mixins": [
-    "thukuna.mixins.json",
-    {
-      "config": "thukuna.client.mixins.json",
-      "environment": "client"
-    }
+    "thukuna.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=${loader_version}",
-    "fabric-api": "*",
-    "minecraft": "${minecraft_version}"
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
   }
 }
