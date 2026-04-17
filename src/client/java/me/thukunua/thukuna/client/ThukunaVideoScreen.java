@@ -1,20 +1,20 @@
 package me.thukunua.thukuna.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.texture.DynamicTexture;
+import net.minecraft.client.texture.NativeImage;
 import net.minecraft.text.Text;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL12;
-import org.lwjgl.opengl.GL13;
+import net.minecraft.util.Identifier;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,7 +25,8 @@ import org.bytedeco.javacv.Java2DFrameConverter;
 @Environment(EnvType.CLIENT)
 public class ThukunaVideoScreen extends Screen {
 
-    private int textureId = -1;
+    private DynamicTexture dynamicTexture = null;
+    private Identifier textureId = null;
     private final List<int[]> frames = new ArrayList<>();
     private int currentFrame = 0;
     private int videoWidth = 0;
@@ -131,71 +132,50 @@ public class ThukunaVideoScreen extends Screen {
             return;
         }
 
-        // Texture einmalig anlegen
-        if (textureId == -1) {
-            textureId = GL11.glGenTextures();
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
+        // DynamicTexture beim ersten Frame anlegen
+        if (dynamicTexture == null) {
+            NativeImage img = new NativeImage(NativeImage.Format.RGBA, videoWidth, videoHeight, false);
+            dynamicTexture = new DynamicTexture(img);
+            textureId = MinecraftClient.getInstance().getTextureManager()
+                    .registerDynamicTexture("thukuna_video", dynamicTexture);
         }
 
-        // Frame-Pixel in ByteBuffer schreiben (RGBA)
-        int[] pixels = frames.get(currentFrame);
-        ByteBuffer buf = ByteBuffer.allocateDirect(videoWidth * videoHeight * 4)
-                .order(ByteOrder.nativeOrder());
-        for (int p : pixels) {
-            buf.put((byte) ((p >> 16) & 0xFF)); // R
-            buf.put((byte) ((p >> 8)  & 0xFF)); // G
-            buf.put((byte) ( p        & 0xFF)); // B
-            buf.put((byte) ((p >> 24) & 0xFF)); // A
+        // Aktuellen Frame in NativeImage schreiben
+        NativeImage img = dynamicTexture.getImage();
+        if (img != null) {
+            int[] pixels = frames.get(currentFrame);
+            for (int y = 0; y < videoHeight; y++) {
+                for (int x = 0; x < videoWidth; x++) {
+                    int argb = pixels[y * videoWidth + x];
+                    // NativeImage erwartet ABGR
+                    int a = (argb >> 24) & 0xFF;
+                    int r = (argb >> 16) & 0xFF;
+                    int g = (argb >> 8)  & 0xFF;
+                    int b =  argb        & 0xFF;
+                    img.setColorArgb(x, y, (a << 24) | (b << 16) | (g << 8) | r);
+                }
+            }
+            dynamicTexture.upload();
         }
-        buf.flip();
-
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
-        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA,
-                videoWidth, videoHeight, 0,
-                GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf);
 
         // Letterbox berechnen
         float scaleX = (float) this.width  / videoWidth;
         float scaleY = (float) this.height / videoHeight;
         float scale  = Math.min(scaleX, scaleY);
-        float drawW  = videoWidth  * scale;
-        float drawH  = videoHeight * scale;
-        float x      = (this.width  - drawW) / 2f;
-        float y      = (this.height - drawH) / 2f;
+        int drawW = (int) (videoWidth  * scale);
+        int drawH = (int) (videoHeight * scale);
+        int x = (this.width  - drawW) / 2;
+        int y = (this.height - drawH) / 2;
 
-        // Reines OpenGL-Quad zeichnen (kein Minecraft-Shader noetig)
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glPushMatrix();
-        GL11.glLoadIdentity();
-        GL11.glOrtho(0, this.width, this.height, 0, -1, 1);
-
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
-        GL11.glPushMatrix();
-        GL11.glLoadIdentity();
-
-        GL11.glEnable(GL11.GL_TEXTURE_2D);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GL11.glColor4f(1f, 1f, 1f, 1f);
-
-        GL11.glBegin(GL11.GL_QUADS);
-            GL11.glTexCoord2f(0, 0); GL11.glVertex2f(x,        y);
-            GL11.glTexCoord2f(1, 0); GL11.glVertex2f(x + drawW, y);
-            GL11.glTexCoord2f(1, 1); GL11.glVertex2f(x + drawW, y + drawH);
-            GL11.glTexCoord2f(0, 1); GL11.glVertex2f(x,        y + drawH);
-        GL11.glEnd();
-
-        GL11.glDisable(GL11.GL_BLEND);
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
-
-        GL11.glPopMatrix();
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glPopMatrix();
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        // Mit context.drawTexture zeichnen - das ist die sichere Minecraft-API
+        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        context.drawTexture(
+                net.minecraft.client.gl.ShaderProgramKeys.POSITION_TEX,
+                textureId,
+                x, y, 0, 0,
+                drawW, drawH,
+                drawW, drawH
+        );
     }
 
     @Override
@@ -210,9 +190,10 @@ public class ThukunaVideoScreen extends Screen {
 
     @Override
     public void close() {
-        if (textureId != -1) {
-            GL11.glDeleteTextures(textureId);
-            textureId = -1;
+        if (textureId != null && client != null) {
+            client.getTextureManager().destroyTexture(textureId);
+            textureId = null;
+            dynamicTexture = null;
         }
         frames.clear();
         super.close();
