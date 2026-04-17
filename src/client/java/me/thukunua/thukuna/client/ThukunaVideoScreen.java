@@ -25,8 +25,10 @@ import org.bytedeco.javacv.Java2DFrameConverter;
 @Environment(EnvType.CLIENT)
 public class ThukunaVideoScreen extends Screen {
 
+    private static final Identifier TEXTURE_ID = Identifier.of("thukuna", "video_frame");
+
     private NativeImageBackedTexture nativeTexture = null;
-    private Identifier textureId = null;
+    private boolean textureRegistered = false;
     private final List<int[]> frames = new ArrayList<>();
     private int currentFrame = 0;
     private int videoWidth = 0;
@@ -102,7 +104,6 @@ public class ThukunaVideoScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Schwarzer Hintergrund
         context.fill(0, 0, this.width, this.height, 0xFF000000);
 
         if (loadFailed) {
@@ -119,28 +120,28 @@ public class ThukunaVideoScreen extends Screen {
             return;
         }
 
-        // Frame-Timing
         long now = System.currentTimeMillis();
         if (now - lastFrameTime >= frameDurationMs) {
             currentFrame++;
             lastFrameTime = now;
         }
 
-        // Video fertig -> Screen schliessen
         if (currentFrame >= frames.size()) {
             this.client.setScreen(null);
             return;
         }
 
-        // NativeImageBackedTexture einmalig anlegen
+        // Texture beim ersten Mal anlegen und registrieren
         if (nativeTexture == null) {
             NativeImage img = new NativeImage(NativeImage.Format.RGBA, videoWidth, videoHeight, false);
-            nativeTexture = new NativeImageBackedTexture("thukuna_video", img);
-            textureId = MinecraftClient.getInstance().getTextureManager()
-                    .registerDynamicTexture("thukuna_video", nativeTexture);
+            nativeTexture = new NativeImageBackedTexture(() -> "thukuna_video_frame", img);
+            // registerTexture(Identifier, AbstractTexture) - verfuegbar in 1.21.11
+            MinecraftClient.getInstance().getTextureManager()
+                    .registerTexture(TEXTURE_ID, nativeTexture);
+            textureRegistered = true;
         }
 
-        // Aktuellen Frame in NativeImage schreiben (ABGR Format fuer NativeImage)
+        // Frame-Pixel in NativeImage schreiben
         NativeImage img = nativeTexture.getImage();
         if (img != null) {
             int[] pixels = frames.get(currentFrame);
@@ -158,7 +159,7 @@ public class ThukunaVideoScreen extends Screen {
             nativeTexture.upload();
         }
 
-        // Letterbox berechnen
+        // Letterbox
         float scaleX = (float) this.width  / videoWidth;
         float scaleY = (float) this.height / videoHeight;
         float scale  = Math.min(scaleX, scaleY);
@@ -167,12 +168,12 @@ public class ThukunaVideoScreen extends Screen {
         int x = (this.width  - drawW) / 2;
         int y = (this.height - drawH) / 2;
 
-        // Texture zeichnen mit der korrekten 1.21.x API
+        // context.drawTexture mit RenderLayer::getGuiTextured (korrekte 1.21.x Signatur)
         context.drawTexture(
                 RenderLayer::getGuiTextured,
-                textureId,
+                TEXTURE_ID,
                 x, y,
-                0, 0,
+                0f, 0f,
                 drawW, drawH,
                 drawW, drawH
         );
@@ -190,9 +191,9 @@ public class ThukunaVideoScreen extends Screen {
 
     @Override
     public void close() {
-        if (textureId != null && client != null) {
-            client.getTextureManager().destroyTexture(textureId);
-            textureId = null;
+        if (textureRegistered && client != null) {
+            client.getTextureManager().destroyTexture(TEXTURE_ID);
+            textureRegistered = false;
             nativeTexture = null;
         }
         frames.clear();
