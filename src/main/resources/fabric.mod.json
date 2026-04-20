@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
   "id": "thukuna",
-  "version": "1.0.0",
+  "version": "1.0",
   "name": "Thukuna",
-  "description": "Spielt das Thukuna-Video ab wenn du ein Advancement bekommst.",
+  "description": "Every time you unlock an advancement, the Thukuna video plays. Full audio, full screen, no mercy.",
   "authors": ["thukunua"],
   "license": "MIT",
+  "icon": "assets/thukuna/icon.png",
   "environment": "client",
   "entrypoints": {
     "main": [
@@ -22,7 +23,7 @@
     "thukuna.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.0",
+    "fabricloader": ">=0.19.2",
     "minecraft": "~1.21.11",
     "java": ">=21",
     "fabric-api": "*"
