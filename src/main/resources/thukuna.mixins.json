@@ -3,7 +3,8 @@
   "package": "me.thukunua.thukuna.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "AdvancementToastMixin"
+    "AdvancementToastMixin",
+    "DoorBlockMixin"
   ],
   "injectors": {
     "defaultRequire": 1
