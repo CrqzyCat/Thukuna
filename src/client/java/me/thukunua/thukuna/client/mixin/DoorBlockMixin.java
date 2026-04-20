@@ -8,7 +8,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.client.sound.AbstractSoundInstance;
-import net.minecraft.client.world.ClientWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.util.ActionResult;
@@ -29,11 +28,11 @@ public class DoorBlockMixin {
     private static final Identifier HELLO_GOJO_ID = Identifier.of("thukuna", "hello_gojo");
 
     @Inject(method = "interactBlock", at = @At("HEAD"))
-    private void onInteractBlock(ClientPlayerEntity player, ClientWorld world, Hand hand,
+    private void onInteractBlock(ClientPlayerEntity player, Hand hand,
                                   BlockHitResult hitResult,
                                   CallbackInfoReturnable<ActionResult> cir) {
         BlockPos pos = hitResult.getBlockPos();
-        BlockState state = world.getBlockState(pos);
+        BlockState state = player.getEntityWorld().getBlockState(pos);
 
         if (state.getBlock() instanceof DoorBlock) {
             SoundEvent event = SoundEvent.of(HELLO_GOJO_ID);
