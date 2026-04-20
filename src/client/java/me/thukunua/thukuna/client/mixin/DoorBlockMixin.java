@@ -5,9 +5,10 @@ import net.fabricmc.api.Environment;
 import net.minecraft.block.DoorBlock;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.client.sound.AbstractSoundInstance;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.client.world.ClientWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.util.ActionResult;
@@ -16,7 +17,6 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.random.Random;
-import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -29,7 +29,7 @@ public class DoorBlockMixin {
     private static final Identifier HELLO_GOJO_ID = Identifier.of("thukuna", "hello_gojo");
 
     @Inject(method = "interactBlock", at = @At("HEAD"))
-    private void onInteractBlock(PlayerEntity player, World world, Hand hand,
+    private void onInteractBlock(ClientPlayerEntity player, ClientWorld world, Hand hand,
                                   BlockHitResult hitResult,
                                   CallbackInfoReturnable<ActionResult> cir) {
         BlockPos pos = hitResult.getBlockPos();
