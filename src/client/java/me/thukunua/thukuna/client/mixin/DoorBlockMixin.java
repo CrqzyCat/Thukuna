@@ -32,7 +32,7 @@ public class DoorBlockMixin {
                             PlayerEntity player, BlockHitResult hit,
                             CallbackInfoReturnable<ActionResult> cir) {
         // Nur clientseitig und nur beim unteren Teil der Tür (sonst wird es 2x gefeuert)
-        if (!world.isClient) return;
+        if (!(world instanceof net.minecraft.client.world.ClientWorld)) return;
         if (state.get(Properties.DOUBLE_BLOCK_HALF) != DoubleBlockHalf.LOWER) return;
 
         SoundEvent event = SoundEvent.of(HELLO_GOJO_ID);
