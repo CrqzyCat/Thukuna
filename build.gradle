@@ -25,26 +25,31 @@ loom {
     }
 }
 
+configurations {
+    includeJars
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    // JavaCV für MP4-Wiedergabe (FFmpeg)
-    implementation("org.bytedeco:javacv-platform:1.5.10") {
-        // Nur was wir brauchen einbinden, nicht alle Plattformen
-        exclude group: 'org.bytedeco', module: 'opencv-platform'
-        exclude group: 'org.bytedeco', module: 'tesseract-platform'
-        exclude group: 'org.bytedeco', module: 'leptonica-platform'
-        exclude group: 'org.bytedeco', module: 'flycapture-platform'
-        exclude group: 'org.bytedeco', module: 'libdc1394-platform'
-        exclude group: 'org.bytedeco', module: 'libfreenect-platform'
-        exclude group: 'org.bytedeco', module: 'videoinput-platform'
-        exclude group: 'org.bytedeco', module: 'artoolkitplus-platform'
-    }
+    // JavaCV + FFmpeg - alle als include damit sie in die JAR eingebettet werden
     include(implementation("org.bytedeco:javacv:1.5.10"))
-    include(implementation("org.bytedeco:ffmpeg-platform:6.1.1-1.5.10"))
+    include(implementation("org.bytedeco:javacpp:1.5.10"))
+    include(implementation("org.bytedeco:ffmpeg:6.1.1-1.5.10"))
+
+    // Native Bibliotheken fuer Windows, Mac, Linux
+    include(implementation("org.bytedeco:ffmpeg:6.1.1-1.5.10:windows-x86_64"))
+    include(implementation("org.bytedeco:ffmpeg:6.1.1-1.5.10:linux-x86_64"))
+    include(implementation("org.bytedeco:ffmpeg:6.1.1-1.5.10:macosx-x86_64"))
+    include(implementation("org.bytedeco:ffmpeg:6.1.1-1.5.10:macosx-arm64"))
+
+    include(implementation("org.bytedeco:javacpp:1.5.10:windows-x86_64"))
+    include(implementation("org.bytedeco:javacpp:1.5.10:linux-x86_64"))
+    include(implementation("org.bytedeco:javacpp:1.5.10:macosx-x86_64"))
+    include(implementation("org.bytedeco:javacpp:1.5.10:macosx-arm64"))
 }
 
 processResources {
