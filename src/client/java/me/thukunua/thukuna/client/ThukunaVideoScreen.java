@@ -5,7 +5,8 @@ import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderPipelines;
+
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.text.Text;
@@ -148,7 +149,7 @@ public class ThukunaVideoScreen extends Screen {
 
             // Korrekte drawTexture-Signatur fuer 1.21.11
             context.drawTexture(
-                    RenderLayer::getGuiTextured,
+                    RenderPipelines.GUI_TEXTURED,
                     TEXTURE,
                     xPos, yPos,
                     0f, 0f,
