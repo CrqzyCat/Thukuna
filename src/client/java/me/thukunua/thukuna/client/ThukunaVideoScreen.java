@@ -5,6 +5,7 @@ import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.text.Text;
@@ -24,7 +25,6 @@ public class ThukunaVideoScreen extends Screen {
     private static final Identifier TEXTURE = Identifier.of("thukuna", "video_frame");
 
     private NativeImageBackedTexture texture;
-    private FFmpegFrameGrabber grabber;
     private Thread videoThread;
 
     private int videoWidth;
@@ -56,26 +56,27 @@ public class ThukunaVideoScreen extends Screen {
 
                 tmp = File.createTempFile("thukuna", ".mp4");
                 tmp.deleteOnExit();
-
                 try (FileOutputStream fos = new FileOutputStream(tmp)) {
                     is.transferTo(fos);
                 }
 
-                grabber = new FFmpegFrameGrabber(tmp);
+                FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(tmp);
                 grabber.start();
 
-                videoWidth = grabber.getImageWidth();
+                videoWidth  = grabber.getImageWidth();
                 videoHeight = grabber.getImageHeight();
-
-                double fps = grabber.getVideoFrameRate();
-                long frameDelay = fps > 0 ? (long) (1000 / fps) : 33;
+                double fps  = grabber.getVideoFrameRate();
+                long frameDelay = fps > 0 ? (long)(1000.0 / fps) : 33;
 
                 Java2DFrameConverter converter = new Java2DFrameConverter();
-                Frame frame;
-
                 loaded = true;
+
+                // Sound starten sobald Video bereit ist
+                MinecraftClient.getInstance().execute(VideoAudioPlayer::start);
+
                 long startTime = System.currentTimeMillis();
                 int frameCount = 0;
+                Frame frame;
 
                 while (running && (frame = grabber.grabImage()) != null) {
                     BufferedImage img = converter.convert(frame);
@@ -87,25 +88,24 @@ public class ThukunaVideoScreen extends Screen {
                         latestFramePixels = pixels;
                         newFrameAvailable = true;
                     }
-
                     frameCount++;
-                    long expectedTime = startTime + (frameCount * frameDelay);
-                    long sleepTime = expectedTime - System.currentTimeMillis();
+                    long sleepTime = (startTime + frameCount * frameDelay) - System.currentTimeMillis();
                     if (sleepTime > 0) Thread.sleep(sleepTime);
                 }
+
+                grabber.stop();
+                grabber.release();
                 finished = true;
+
+            } catch (InterruptedException ignored) {
             } catch (Exception e) {
+                ThukunaClient.LOGGER.error("Thukuna: Video Fehler", e);
                 failed = true;
             } finally {
-                cleanup(tmp);
+                if (tmp != null) tmp.delete();
             }
-        }, "video-loader");
+        }, "thukuna-video");
         videoThread.start();
-    }
-
-    private void cleanup(File tmp) {
-        if (grabber != null) { try { grabber.stop(); grabber.release(); } catch (Exception ignored) {} }
-        if (tmp != null && tmp.exists()) tmp.delete();
     }
 
     @Override
@@ -113,7 +113,7 @@ public class ThukunaVideoScreen extends Screen {
         context.fill(0, 0, width, height, 0xFF000000);
 
         if (failed) {
-            context.drawCenteredTextWithShadow(textRenderer, Text.literal("Video Fehler"), width / 2, height / 2, 0xFF5555);
+            context.drawCenteredTextWithShadow(textRenderer, Text.literal("Video Fehler!"), width / 2, height / 2, 0xFFFF5555);
             return;
         }
 
@@ -127,10 +127,10 @@ public class ThukunaVideoScreen extends Screen {
             return;
         }
 
+        // Texture einmalig anlegen - korrekter Konstruktor fuer 1.21.11
         if (texture == null && videoWidth > 0 && videoHeight > 0) {
             NativeImage img = new NativeImage(NativeImage.Format.RGBA, videoWidth, videoHeight, false);
-            // Konstruktor für 1.21.1
-            texture = new NativeImageBackedTexture(img);
+            texture = new NativeImageBackedTexture(() -> "thukuna_video", img);
             MinecraftClient.getInstance().getTextureManager().registerTexture(TEXTURE, texture);
         }
 
@@ -141,37 +141,33 @@ public class ThukunaVideoScreen extends Screen {
 
         if (texture != null) {
             float scale = Math.min((float) width / videoWidth, (float) height / videoHeight);
-            int drawW = Math.round(videoWidth * scale);
+            int drawW = Math.round(videoWidth  * scale);
             int drawH = Math.round(videoHeight * scale);
-            int xPos = (width - drawW) / 2;
-            int yPos = (height - drawH) / 2;
+            int xPos  = (width  - drawW) / 2;
+            int yPos  = (height - drawH) / 2;
 
-            // DIESE METHODE SOLLTE IN 1.21.1 OHNE RENDERLAYER FUNKTIONIEREN:
-            // Wir nutzen die einfache Variante, die das Bild auf die Zielgröße streckt.
+            // Korrekte drawTexture-Signatur fuer 1.21.11
             context.drawTexture(
+                    RenderLayer::getGuiTextured,
                     TEXTURE,
-                    xPos,
-                    yPos,
-                    0,
-                    0,
-                    drawW,
-                    drawH,
-                    videoWidth,
-                    videoHeight
+                    xPos, yPos,
+                    0f, 0f,
+                    drawW, drawH,
+                    drawW, drawH
             );
         }
     }
 
     private void updateTexture(int[] pixels) {
         NativeImage img = texture.getImage();
+        if (img == null) return;
         for (int y = 0; y < videoHeight; y++) {
             for (int x = 0; x < videoWidth; x++) {
                 int argb = pixels[y * videoWidth + x];
                 int a = (argb >> 24) & 0xFF;
                 int r = (argb >> 16) & 0xFF;
-                int g = (argb >> 8) & 0xFF;
-                int b = argb & 0xFF;
-                // NativeImage Format: ABGR (daher r und b getauscht beim Schreiben)
+                int g = (argb >> 8)  & 0xFF;
+                int b =  argb        & 0xFF;
                 img.setColorArgb(x, y, (a << 24) | (b << 16) | (g << 8) | r);
             }
         }
@@ -182,12 +178,17 @@ public class ThukunaVideoScreen extends Screen {
     public void removed() {
         running = false;
         if (videoThread != null) videoThread.interrupt();
+        VideoAudioPlayer.stop();
         if (texture != null) {
-            texture.close();
             MinecraftClient.getInstance().getTextureManager().destroyTexture(TEXTURE);
+            texture.close();
+            texture = null;
         }
     }
 
     @Override
     public boolean shouldCloseOnEsc() { return true; }
+
+    @Override
+    public boolean shouldPause() { return true; }
 }
