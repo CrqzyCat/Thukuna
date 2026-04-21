@@ -4,7 +4,8 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "AdvancementToastMixin",
-    "DoorBlockMixin"
+    "DoorBlockMixin",
+    "WardenSoundMixin"
   ],
   "injectors": {
     "defaultRequire": 1

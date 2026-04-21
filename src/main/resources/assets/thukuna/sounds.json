@@ -14,5 +14,13 @@
         "stream": false
       }
     ]
+  },
+  "hollow_purple": {
+    "sounds": [
+      {
+        "name": "thukuna:hollow_purple",
+        "stream": false
+      }
+    ]
   }
 }
