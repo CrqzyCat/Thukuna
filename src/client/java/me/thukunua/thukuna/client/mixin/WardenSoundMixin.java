@@ -20,7 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(SoundManager.class)
 public class WardenSoundMixin {
 
-    private static final Identifier WARDEN_SONIC_BOOM = Identifier.of("minecraft", "entity.warden.sonic_boom");
+    private static final Identifier WARDEN_SONIC_BOOM = Identifier.of("minecraft", "entity.warden.sonic_charge");
     private static final Identifier HOLLOW_PURPLE_ID  = Identifier.of("thukuna", "hollow_purple");
 
     @Inject(
