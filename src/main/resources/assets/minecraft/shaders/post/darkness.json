@@ -1,0 +1,29 @@
+{
+    "targets": [
+        "swap"
+    ],
+    "passes": [
+        {
+            "name": "minecraft:infinite_void",
+            "intarget": "minecraft:main",
+            "outtarget": "swap",
+            "uniforms": [
+                {
+                    "name": "Radius",
+                    "type": "float",
+                    "value": [0.0]
+                },
+                {
+                    "name": "DarknessScale",
+                    "type": "float",
+                    "value": [0.0]
+                }
+            ]
+        },
+        {
+            "name": "minecraft:blit",
+            "intarget": "swap",
+            "outtarget": "minecraft:main"
+        }
+    ]
+}
