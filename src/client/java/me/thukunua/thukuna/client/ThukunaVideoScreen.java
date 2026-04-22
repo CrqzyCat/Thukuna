@@ -191,5 +191,5 @@ public class ThukunaVideoScreen extends Screen {
     public boolean shouldCloseOnEsc() { return true; }
 
     @Override
-    public boolean shouldPause() { return true; }
+    public boolean shouldPause() { return false; }
 }

@@ -12,22 +12,21 @@ import org.slf4j.LoggerFactory;
 public class ThukunaClient implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("thukuna");
-
-    // Flag gesetzt vom Mixin wenn ein Advancement kommt
     public static boolean shouldShowVideo = false;
 
     @Override
     public void onInitializeClient() {
         LOGGER.info("Thukuna Client initialized!");
 
-        // Jeden Tick prüfen ob Video gezeigt werden soll
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (shouldShowVideo && client.player != null) {
                 shouldShowVideo = false;
-                // Video-Screen öffnen
-                MinecraftClient.getInstance().execute(() ->
-                    MinecraftClient.getInstance().setScreen(new ThukunaVideoScreen())
-                );
+                // Nur oeffnen wenn kein anderer Screen aktiv ist
+                if (client.currentScreen == null) {
+                    MinecraftClient.getInstance().execute(() ->
+                        MinecraftClient.getInstance().setScreen(new ThukunaVideoScreen())
+                    );
+                }
             }
         });
     }
