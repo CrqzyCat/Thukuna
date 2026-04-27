@@ -18,20 +18,25 @@ void main() {
     vec2 uv = texCoord * 2.0 - 1.0;
     float dist = length(uv);
 
-    float darkness = clamp(Radius * DarknessScale, 0.0, 1.0);
+    // Darkness Staerke - auch ohne Radius/DarknessScale sichtbar machen
+    float darkness = max(Radius * DarknessScale, 0.5);
 
     // Lila Infinite Void Farbe
-    vec3 voidColor = vec3(0.04, 0.0, 0.12);
+    vec3 voidColor = vec3(0.04, 0.0, 0.18);
 
-    // Vignette staerker zum Rand
-    float vignette = smoothstep(0.2, 1.1, dist) * darkness;
+    // Starke Vignette
+    float vignette = smoothstep(0.1, 0.9, dist) * darkness;
+
+    // Lila Nebel ueber alles
+    float fog = darkness * 0.3;
 
     // Sterne
-    float starNoise = random(floor(texCoord * 200.0));
-    float star = step(0.985, starNoise) * smoothstep(0.5, 1.0, dist) * darkness;
-    vec3 starColor = vec3(0.5, 0.0, 1.0) * star * 2.0;
+    float starNoise = random(floor(texCoord * 300.0));
+    float star = step(0.982, starNoise) * smoothstep(0.3, 1.0, dist) * darkness;
+    vec3 starColor = vec3(0.6, 0.1, 1.0) * star * 3.0;
 
-    vec3 result = mix(color.rgb, voidColor, vignette * 0.9) + starColor;
+    // Ergebnis: lila Schleier + Vignette + Sterne
+    vec3 result = mix(color.rgb, voidColor, vignette * 0.95 + fog) + starColor;
 
     fragColor = vec4(result, color.a);
 }
