@@ -24,42 +24,36 @@ public class DarknessMixin {
 
         int w = context.getScaledWindowWidth();
         int h = context.getScaledWindowHeight();
+
+        // Farben: transparent in der Mitte, lila aussen
+        int transparent = 0x00080018;
+        int purple      = 0xCC080018; // lila dunkel aussen
+
+        // 4x fillGradient von jedem Rand zur Mitte - sehr effizient
+        // Oben
+        context.fillGradient(0, 0, w, h / 2, purple, transparent);
+        // Unten
+        context.fillGradient(0, h / 2, w, h, transparent, purple);
+        // Links
+        context.fillGradient(0, 0, w / 2, h, purple, transparent);
+        // Rechts
+        context.fillGradient(w / 2, 0, w, h, transparent, purple);
+
+        // Leichter lila Schleier
+        context.fill(0, 0, w, h, 0x25150030);
+
+        // Sterne - nur einmal berechnen, sehr guenstig
+        java.util.Random rand = new java.util.Random(42);
         float cx = w / 2f;
         float cy = h / 2f;
-        float maxDist = (float) Math.sqrt(cx * cx + cy * cy);
-
-        // Leichter lila Schleier ueber alles
-        context.fill(0, 0, w, h, 0x22100025);
-
-        // Radialer Gradient - pixel fuer pixel (in groesseren Bloecken fuer Performance)
-        int blockSize = 4;
-        for (int y = 0; y < h; y += blockSize) {
-            for (int x = 0; x < w; x += blockSize) {
-                float dx = x - cx;
-                float dy = y - cy;
-                float dist = (float) Math.sqrt(dx * dx + dy * dy) / maxDist;
-
-                // Nur am Rand dunkel, Mitte transparent
-                if (dist > 0.35f) {
-                    float t = (dist - 0.35f) / 0.65f;
-                    t = t * t; // quadratisch fuer weicheren Verlauf
-                    int alpha = (int)(180 * t);
-                    context.fill(x, y, Math.min(x + blockSize, w), Math.min(y + blockSize, h),
-                            (alpha << 24) | 0x080018);
-                }
-            }
-        }
-
-        // Sterne
-        java.util.Random rand = new java.util.Random(42);
-        for (int i = 0; i < 80; i++) {
+        for (int i = 0; i < 60; i++) {
             int sx = rand.nextInt(w);
             int sy = rand.nextInt(h);
             float dx = (sx - cx) / cx;
             float dy = (sy - cy) / cy;
             float dist = (float) Math.sqrt(dx * dx + dy * dy);
             if (dist > 0.5f) {
-                int alpha = (int)(200 * Math.min(1.0f, (dist - 0.5f) * 2f));
+                int alpha = (int)(180 * Math.min(1.0f, (dist - 0.5f) * 2f));
                 context.fill(sx, sy, sx + 1, sy + 1, (alpha << 24) | 0x9900FF);
             }
         }
