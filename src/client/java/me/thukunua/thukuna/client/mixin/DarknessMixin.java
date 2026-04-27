@@ -24,27 +24,30 @@ public class DarknessMixin {
 
         int w = context.getScaledWindowWidth();
         int h = context.getScaledWindowHeight();
-        int cx = w / 2;
-        int cy = h / 2;
+        float cx = w / 2f;
+        float cy = h / 2f;
+        float maxDist = (float) Math.sqrt(cx * cx + cy * cy);
 
-        // Lila Schleier ueber den gesamten Screen
-        context.fill(0, 0, w, h, 0x33150030);
+        // Leichter lila Schleier ueber alles
+        context.fill(0, 0, w, h, 0x22100025);
 
-        // Gradient Vignette - Zeile fuer Zeile von oben und unten
-        int steps = 80;
-        for (int i = 0; i < steps; i++) {
-            float t = (float) i / steps;
-            int alpha = (int)(160 * t * t); // quadratischer Verlauf
-            int color = (alpha << 24) | 0x080018;
+        // Radialer Gradient - pixel fuer pixel (in groesseren Bloecken fuer Performance)
+        int blockSize = 4;
+        for (int y = 0; y < h; y += blockSize) {
+            for (int x = 0; x < w; x += blockSize) {
+                float dx = x - cx;
+                float dy = y - cy;
+                float dist = (float) Math.sqrt(dx * dx + dy * dy) / maxDist;
 
-            // Oben
-            context.fill(0, i * h / (steps * 2), w, (i + 1) * h / (steps * 2), color);
-            // Unten
-            context.fill(0, h - (i + 1) * h / (steps * 2), w, h - i * h / (steps * 2), color);
-            // Links
-            context.fill(i * w / (steps * 2), 0, (i + 1) * w / (steps * 2), h, color);
-            // Rechts
-            context.fill(w - (i + 1) * w / (steps * 2), 0, w - i * w / (steps * 2), h, color);
+                // Nur am Rand dunkel, Mitte transparent
+                if (dist > 0.35f) {
+                    float t = (dist - 0.35f) / 0.65f;
+                    t = t * t; // quadratisch fuer weicheren Verlauf
+                    int alpha = (int)(180 * t);
+                    context.fill(x, y, Math.min(x + blockSize, w), Math.min(y + blockSize, h),
+                            (alpha << 24) | 0x080018);
+                }
+            }
         }
 
         // Sterne
@@ -52,8 +55,8 @@ public class DarknessMixin {
         for (int i = 0; i < 80; i++) {
             int sx = rand.nextInt(w);
             int sy = rand.nextInt(h);
-            float dx = (sx - cx) / (float) cx;
-            float dy = (sy - cy) / (float) cy;
+            float dx = (sx - cx) / cx;
+            float dy = (sy - cy) / cy;
             float dist = (float) Math.sqrt(dx * dx + dy * dy);
             if (dist > 0.5f) {
                 int alpha = (int)(200 * Math.min(1.0f, (dist - 0.5f) * 2f));
