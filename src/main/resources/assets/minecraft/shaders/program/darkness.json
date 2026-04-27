@@ -1,6 +1,6 @@
 {
-    "vertex": "minecraft:infinite_void",
-    "fragment": "minecraft:infinite_void",
+    "vertex": "minecraft:darkness",
+    "fragment": "minecraft:darkness",
     "attributes": ["Position", "UV"],
     "samplers": [
         { "name": "DiffuseSampler" }

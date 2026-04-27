@@ -4,20 +4,12 @@
     ],
     "passes": [
         {
-            "name": "minecraft:infinite_void",
+            "name": "minecraft:darkness",
             "intarget": "minecraft:main",
             "outtarget": "swap",
             "uniforms": [
-                {
-                    "name": "Radius",
-                    "type": "float",
-                    "value": [0.0]
-                },
-                {
-                    "name": "DarknessScale",
-                    "type": "float",
-                    "value": [0.0]
-                }
+                { "name": "Radius",        "values": [0.0] },
+                { "name": "DarknessScale", "values": [0.0] }
             ]
         },
         {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "thukuna",
-  "version": "3.3",
+  "version": "3.2.2",
   "name": "Thukuna",
   "description": "Spielt das Thukuna-Video ab wenn du ein Advancement bekommst.",
   "authors": ["thukunua"],
