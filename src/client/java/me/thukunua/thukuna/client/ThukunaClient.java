@@ -21,8 +21,8 @@ public class ThukunaClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (shouldShowVideo && client.player != null) {
                 shouldShowVideo = false;
-                // Nur oeffnen wenn kein anderer Screen aktiv ist
-                if (client.currentScreen == null) {
+                // Nur nicht oeffnen wenn bereits ein Video laeuft
+                if (!(client.currentScreen instanceof ThukunaVideoScreen)) {
                     MinecraftClient.getInstance().execute(() ->
                         MinecraftClient.getInstance().setScreen(new ThukunaVideoScreen())
                     );
