@@ -5,7 +5,8 @@
   "client": [
     "AdvancementToastMixin",
     "DoorBlockMixin",
-    "WardenSoundMixin"
+    "WardenSoundMixin",
+    "DarknessMixin"
   ],
   "injectors": {
     "defaultRequire": 1
